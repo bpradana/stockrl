@@ -70,6 +70,7 @@ class DQNAgent:
         # Backpropagation to update the Q-network
         self.optimizer.zero_grad()
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), 1)
         self.optimizer.step()
 
         return loss.item()

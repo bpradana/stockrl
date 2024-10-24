@@ -1,4 +1,5 @@
 import numpy as np
+from sklearn.preprocessing import MinMaxScaler
 
 
 class TradingEnvironment:
@@ -8,7 +9,7 @@ class TradingEnvironment:
         self.data = data  # The normalized OHLCV data
         self.window_size = window_size  # Number of days in each state
         self.transaction_cost = transaction_cost  # Fee for each trade
-        self.current_step = window_size  # Start after the first full window
+        self.current_step = window_size if window_size is not None else 0
         self.done = False  # Whether the episode is finished
         self.position = 0  # 1 for holding a long position, 0 for no position
         self.cash = 1.0  # Start with an initial portfolio value (e.g., $1)
@@ -22,18 +23,19 @@ class TradingEnvironment:
 
     def _next_observation(self):
         """Get the window of data."""
-        frame = self.data[self.current_step - self.window_size : self.current_step]
+        if self.window_size is None:
+            frame = self.data.iloc[self.current_step]
+            normalized = MinMaxScaler().fit_transform(frame.values.reshape(-1, 1))
+            normalized = normalized.flatten()
+        else:
+            frame = self.data[self.current_step - self.window_size : self.current_step]
+            normalized = MinMaxScaler().fit_transform(frame.values)
 
-        obs = []
-        for column in self.columns:
-            normalized = (frame[column] - frame[column].mean()) / frame[column].std()
-            obs.append(normalized.values)
-
-        return np.array(obs)
+        return np.array(normalized)
 
     def reset(self):
         """Reset the environment for a new episode."""
-        self.current_step = self.window_size
+        self.current_step = self.window_size if self.window_size is not None else 0
         self.done = False
         self.position = 0
         self.cash = 1.0
@@ -90,7 +92,7 @@ class TradingEnvironment:
 
         # Move to the next time step
         self.current_step += 1
-        if self.current_step >= len(self.data):
+        if self.current_step >= len(self.data) - 1:
             self.done = True  # End the episode if we're out of data
 
         # Return the new state, reward, and done flag

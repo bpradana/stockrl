@@ -6,17 +6,17 @@ import torch
 
 from agent import DQNAgent
 from environment import TradingEnvironment
-from model import LSTM_QNetwork
+from model import DNN_QNetwork, LSTM_QNetwork
 from util import EpsilonGreedyStrategy, ReplayBuffer
 
 if __name__ == "__main__":
-    num_episodes = 30
+    num_episodes = 50
     batch_size = 32
-    target_update_freq = 10  # Update the target network every 10 episodes
+    target_update_freq = 2  # Update the target network every 10 episodes
     epsilon_start = 1.0
-    epsilon_decay = 5000
-    epsilon_min = 0.01
-    input_size = 5  # Number of features (OHLCV)
+    epsilon_decay = 10000
+    epsilon_min = 0.001
+    input_size = 20  # Number of features (OHLCV)
     hidden_size = 64  # Size of LSTM hidden state
     output_size = 3  # Number of actions (Hold, Buy, Sell)
     num_layers = 1  # Single LSTM layer
@@ -26,21 +26,27 @@ if __name__ == "__main__":
     price_column = "close"
     columns = data.columns
 
-    q_network = LSTM_QNetwork(len(columns), hidden_size, output_size)
-    target_network = LSTM_QNetwork(len(columns), hidden_size, output_size)
+    q_network = LSTM_QNetwork(input_size, hidden_size, output_size)
+    target_network = LSTM_QNetwork(input_size, hidden_size, output_size)
     target_network.load_state_dict(q_network.state_dict())
+
+    # q_network = DNN_QNetwork(input_size, hidden_size, output_size)
+    # target_network = DNN_QNetwork(input_size, hidden_size, output_size)
+    # target_network.load_state_dict(q_network.state_dict())
 
     env = TradingEnvironment(
         data=data, window_size=window_size, columns=columns, price_column=price_column
     )
-    epsilon_strategy = EpsilonGreedyStrategy(start=1.0, end=0.01, decay=5000)
+    epsilon_strategy = EpsilonGreedyStrategy(
+        start=epsilon_start, end=epsilon_min, decay=epsilon_decay
+    )
     replay_buffer = ReplayBuffer(capacity=10000)
     agent = DQNAgent(
         q_network=q_network,
         target_network=target_network,
         replay_buffer=replay_buffer,
         epsilon_strategy=epsilon_strategy,
-        device="auto",
+        device="cpu",
     )
 
     logs: List[Dict[str, List[Any]]] = []
@@ -50,9 +56,10 @@ if __name__ == "__main__":
         total_reward = 0
         done = False
 
-        log: Dict[str, List[Any]] = {
+        log: Dict[str, Any] = {
             "rewards": [],
             "actions": [],
+            "total_reward": 0,
         }
 
         while not done:
@@ -79,6 +86,7 @@ if __name__ == "__main__":
                 loss = agent.update(batch_size)
 
         # Log the episode
+        log["total_reward"] = total_reward
         logs.append(log)
 
         # Periodically update the target network
@@ -89,7 +97,7 @@ if __name__ == "__main__":
         if episode % 10 == 0:
             torch.save(q_network.state_dict(), f"lstm_dqn_ep_{episode}.pt")
 
-        print(f"Episode {episode}, Total Reward: {total_reward}")
+        print(f"Episode {episode}, Total Reward: {total_reward}, Epsilon: {epsilon}")
 
     # Save the logs
     with open("logs.json", "w") as f:

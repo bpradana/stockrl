@@ -61,7 +61,8 @@ class FeatureEngineering:
 
 
 if __name__ == "__main__":
-    data = yf.download("BTC-USD", start="2015-01-01", end="2024-10-01")
+    ticker = "BTC-USD"
+    data = yf.download(ticker, start="2020-01-01", end="2024-10-01")
     data = data.rename(
         columns={
             "Date": "date",
@@ -77,4 +78,4 @@ if __name__ == "__main__":
     fe.add_indicators()
     data = fe.get_data()
     data = data.dropna()
-    data.to_csv("BTC-USD.csv", index=False)
+    data.to_csv(f"{ticker}.csv", index=False)
